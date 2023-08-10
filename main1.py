@@ -1,7 +1,8 @@
 from dataclasses import field, dataclass
 from typing import Optional
 from datasets import load_dataset
-from abc import ABC, abstractclassmethod
+from abc import ABC, abstractmethod
+import datasets
 
 @dataclass
 class DataArguments(ABC):
@@ -24,12 +25,9 @@ class DataArguments(ABC):
     random_seed: Optional[int] = field(
         default=42,
         metadata={"help": "An optinal give the random seed to shuffer data"})
-    get_valid: Optional[bool] = field(
-        default=False,
-        metadata={"help": "An optional to get validation set"})
-    validation_split_percentage = field(
-        default=0.2,
-        metadata={"help": "An option to slipt dataset, default = 0.2"})
+    num_sample: Optional[int] = field(
+        default=10000,
+        metadata={"help": "An option number of sameple for validation set, default = 0.2"})
     shuffle: Optional[bool] = field(
         default=True,
         metadata={"help": "An opiton to shuffle the data"})
@@ -37,43 +35,56 @@ class DataArguments(ABC):
         dataset_name = self.dataset_name
         dataset_config_name = self.dataset_config_name
         dataset_language = self.dataset_language
-        streaming = self.streamingname
+        streaming = self.streaming
         random_seed = self.random_seed
-        get_valid = self.get_valid
-        validation_split_percentage = self.validation_split_percentage
-        shuffer = self.shuffer
+        shuffle = self.shuffle
 
-    @abstractclassmethod
-    def load_dataset(self) -> dataset:
+    @abstractmethod
+
+    def load_dataset(self) -> datasets.iterable_dataset.IterableDataset:
         pass
 
-    def load_valid(self) -> validation_set:
+    def load_valid(self) -> datasets.iterable_dataset.IterableDataset:
         pass
 
 @dataclass
-class preprocess_vi(preprocess):
+class preprocess_vi(DataArguments):
     def __post_init__(self):
         super().__post_init__()
 
     def load_dataset(self):
-        datasets = load_dataset(dataset_name, dataset_language, split=dataset_config_name, streaming=streaming)
+        datasets = load_dataset(
+            self.dataset_name, 
+            self.dataset_language, 
+            split=self.dataset_config_name, 
+            streaming=self.streaming)
         return datasets
 
+    def load_valid(self):
+        datasets = load_dataset(
+            self.dataset_name, 
+            self.dataset_language, 
+            split=self.dataset_config_name, 
+            streaming=self.streaming)
+        if self.shuffle == True:
+            shuffled_dataset = datasets.shuffle(
+                seed=self.random_seed, buffer_size=self.num_sample)
+            return shuffled_dataset
+        return datasets
     
 
 def main():
-    args = DataArguments(
+    wikilingua = preprocess_vi(
         dataset_name='wiki_lingua',
         dataset_config_name = 'train',
         dataset_language = 'vietnamese',
         streaming = True)
-    preprocess_instance = preprocess_vi(
-        dataset_name=args.dataset_name,
-        dataset_config_name=args.dataset_config_name,
-        dataset_language=args.dataset_language,
-        streaming=args.streaming)
-    datasets = preprocess_instance.load_dataset()
-    print(next(iter(datasets)))
+    train_set = wikilingua.load_dataset()
+    valid_set = wikilingua.load_valid()
+    print(next(iter(train_set)))
+    print(next(iter(train_set)))
+    print(next(iter(valid_set)))
+    
     print("Run all complete !!!")
 
 if __name__ == "__main__":
